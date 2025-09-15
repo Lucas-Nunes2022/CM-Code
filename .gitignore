@@ -1,0 +1,22 @@
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env
+venv/
+.env
+
+# Editor / OS
+.vscode/
+Thumbs.db
+.DS_Store
+
+# Build / PyInstaller
+dist/
+build/
+*.spec
+
+#binarios extras
+*.dat
+nvdaControllerClient.dll
