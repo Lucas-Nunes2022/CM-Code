@@ -1,10 +1,10 @@
-import os
-import tempfile
+import io
 import pygame
 import variaveis
 from speech import Speech
 from core import Board
 from soundloader import SoundLoader
+from dlg import Dialog
 
 TILE = 40
 MARGIN = 20
@@ -32,6 +32,7 @@ class Game:
         self.screen = screen
         self.speech = Speech()
         self.loader = SoundLoader()
+        self.dialog = Dialog()
         self.size = max(3, int(variaveis.qtd_linhas_colunas or 9))
         self.reset_board()
 
@@ -50,7 +51,8 @@ class Game:
         }
 
         self.music_file = "musica_partida.ogg"
-        self._music_temp_path = None
+        self._music_stream = None
+        self._prepare_music_file()
 
     def reset_board(self):
         self.size = max(3, int(variaveis.qtd_linhas_colunas or 9))
@@ -63,31 +65,21 @@ class Game:
             self.sounds[name].play()
 
     def _prepare_music_file(self):
-        """Cria o arquivo temporário apenas uma vez e reutiliza."""
-        if not self._music_temp_path or not os.path.exists(self._music_temp_path):
-            data = self.loader.raw_data.get(self.music_file)
-            if data:
-                tmp_path = os.path.join(tempfile.gettempdir(), "cm_game_music.ogg")
-                try:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
-                except Exception:
-                    pass
-                with open(tmp_path, "wb") as f:
-                    f.write(data)
-                    f.flush()            # garante que o buffer Python foi escrito
-                    os.fsync(f.fileno()) # força o SO a gravar em disco
-                self._music_temp_path = tmp_path
+        data = self.loader.raw_data.get(self.music_file)
+        if data:
+            self._music_stream = io.BytesIO(data)
+            try:
+                pygame.mixer.music.load(self._music_stream)
+                pygame.mixer.music.set_volume(0.6)
+            except Exception:
+                pass
 
     def play_music(self):
         try:
-            self._prepare_music_file()
-            if self._music_temp_path:
-                pygame.mixer.music.load(self._music_temp_path)
-                pygame.mixer.music.set_volume(0.6)
+            if self._music_stream:
                 pygame.mixer.music.play(-1)
-        except Exception as e:
-            print(f"Erro ao carregar música: {e}")
+        except Exception:
+            pass
 
     def stop_music(self):
         try:
@@ -96,14 +88,9 @@ class Game:
             pass
 
     def cleanup(self):
-        """Chamada apenas quando sair do jogo de vez."""
-        self.stop_music()
-        if self._music_temp_path and os.path.exists(self._music_temp_path):
-            try:
-                os.remove(self._music_temp_path)
-            except Exception:
-                pass
-        self._music_temp_path = None
+        pygame.mixer.music.fadeout(800)
+        pygame.time.wait(800)
+        pygame.mixer.music.stop()
 
     def speak_cell(self, r, c):
         cell = self.board.grid[r][c]
@@ -150,21 +137,10 @@ class Game:
             pygame.draw.rect(surf, (255, 255, 0), rect, 3)
 
     def draw_hud(self, surf):
-        if self.board.lost:
-            msg = "Você perdeu!"
-        elif self.board.victory():
-            msg = "Você venceu!"
-        else:
-            msg = "Campo Minado"
-
+        msg = "Campo Minado"
         text = self.font.render(msg, True, (235, 235, 240))
         surf.blit(text, (MARGIN, MARGIN + TILE*self.size + 12))
-
-        if self.board.lost or self.board.victory():
-            s2 = self.font.render("Enter joga novamente | ESC volta ao menu", True, (220, 200, 200))
-        else:
-            s2 = self.font.render("Setas movem | Enter abre | Espaço marca | ESC volta", True, (180, 180, 190))
-
+        s2 = self.font.render("Setas movem | Enter abre | Espaço marca | ESC volta", True, (180, 180, 190))
         surf.blit(s2, (MARGIN, MARGIN + TILE*self.size + 34))
 
     def reveal_all(self):
@@ -178,17 +154,15 @@ class Game:
             self.reveal_all()
             self.stop_music()
             self.play_sound("lose")
-            self.speech.speak("Você explodiu uma bomba. Pressione Enter para jogar novamente ou Escape para voltar ao menu.")
         elif opened:
             self.play_sound("click")
             self.speak_cell(r, c)
             if any(self.board.grid[i][j].adj > 0 for i, j in opened):
                 self.play_sound("near")
-        if self.board.victory():
+        if self.board.victory() and not self.board.lost:
             self.reveal_all()
             self.stop_music()
             self.play_sound("win")
-            self.speech.speak("Parabéns! Você venceu. Pressione Enter para jogar novamente ou Escape para voltar ao menu.")
 
     def toggle_flag(self, r, c):
         self.board.toggle_flag(r, c)
@@ -199,6 +173,7 @@ class Game:
         self.play_music()
         self.speak_cell(self.cursor_r, self.cursor_c)
         clock = pygame.time.Clock()
+        
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -209,13 +184,7 @@ class Game:
                         self.cleanup()
                         return "back"
                     if event.key == pygame.K_RETURN:
-                        if self.board.lost or self.board.victory():
-                            self.reset_board()
-                            self.play_music()
-                            self.speech.speak("Novo jogo iniciado.")
-                            self.speak_cell(self.cursor_r, self.cursor_c)
-                        else:
-                            self.open_cell(self.cursor_r, self.cursor_c)
+                        self.open_cell(self.cursor_r, self.cursor_c)
                     elif event.key == pygame.K_SPACE:
                         if not (self.board.lost or self.board.victory()):
                             self.toggle_flag(self.cursor_r, self.cursor_c)
@@ -240,6 +209,29 @@ class Game:
             self.screen.blit(self.surface, (0, 0))
             pygame.display.flip()
             clock.tick(60)
+
+            if self.board.lost:
+                pygame.time.wait(500)
+                if self.dialog.show("Você explodiu uma bomba. Pressione Enter para jogar novamente ou Escape para voltar ao menu.", "Derrota"):
+                    self.reset_board()
+                    self.play_music()
+                    self.speech.speak("Novo jogo iniciado.")
+                    self.speak_cell(self.cursor_r, self.cursor_c)
+                else:
+                    self.cleanup()
+                    return "back"
+            
+            elif self.board.victory():
+                pygame.time.wait(500)
+                if self.dialog.show("Parabéns! Você venceu. Pressione Enter para jogar novamente ou Escape para voltar ao menu.", "Vitória"):
+                    self.reset_board()
+                    self.play_music()
+                    self.speech.speak("Novo jogo iniciado.")
+                    self.speak_cell(self.cursor_r, self.cursor_c)
+                else:
+                    self.cleanup()
+                    return "back"
+
         self.cleanup()
         return "back"
 

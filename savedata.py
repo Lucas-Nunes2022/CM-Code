@@ -37,8 +37,8 @@ class SaveData:
                     encrypted_data = f.read()
                     decrypted_data = self._cipher.decrypt(encrypted_data)
                     self._config = json.loads(decrypted_data.decode('utf-8'))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Erro ao carregar configurações: {e}")
 
     def _save_settings(self):
         try:
@@ -46,8 +46,8 @@ class SaveData:
             encrypted_data = self._cipher.encrypt(data)
             with open(self._settings_file, 'wb') as f:
                 f.write(encrypted_data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Erro ao salvar configurações: {e}")
 
     def get_player_name(self):
         return self._config.get('player_name', '')

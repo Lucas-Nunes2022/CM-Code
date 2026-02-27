@@ -18,7 +18,7 @@ class m_pro:
         self.title_message = "Selecione uma opção com as setas e pressione Enter para selecionar."
         self.background_music = None
         self.music_volume = 0.7
-        self.fade_duration = 2000
+        self.fade_duration = 1500
 
         self.title_font = pygame.font.SysFont(None, 48)
         self.option_font = pygame.font.SysFont(None, 36)
@@ -101,9 +101,10 @@ class m_pro:
             result = selected_option["submenu"].show()
             if result == "back":
                 self.selected = 0
-                self.speech.speak(self.title_message)
+                text_to_speak = self.title_message
                 if self.options:
-                    self.speech.speak(self.options[self.selected]["tts"])
+                    text_to_speak += " " + self.options[self.selected]["tts"]
+                self.speech.speak(text_to_speak)
                 self.play_sound("click")
                 return ("back", "submenu")
             return (result, "submenu")
@@ -124,9 +125,10 @@ class m_pro:
         return (None, "action")
 
     def show(self, is_main_menu=False):
-        self.speech.speak(self.title_message)
+        text_to_speak = self.title_message
         if self.options:
-            self.speech.speak(self.options[self.selected]["tts"])
+            text_to_speak += " " + self.options[self.selected]["tts"]
+        self.speech.speak(text_to_speak)
 
         while True:
             for event in pygame.event.get():

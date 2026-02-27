@@ -11,15 +11,27 @@ from cryptography.fernet import Fernet
 import pygame
 
 class SoundLoader:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(SoundLoader, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self, dat_path="sounds.dat",
                  password=b'632514gfdhkjsiutr',
                  salt=b'salt_fixo_para_audio_123'):
+        if self._initialized:
+            return
+            
         self.dat_path = dat_path
         self.password = password
         self.salt = salt
         self.sounds = {}
         self.raw_data = {}
         self._load()
+        self._initialized = True
 
     def _derive_key(self):
         kdf = PBKDF2HMAC(

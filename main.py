@@ -1,5 +1,4 @@
 import pygame
-import wx
 import variaveis
 from menu import Menu
 from game import start_game
@@ -10,7 +9,6 @@ def main():
     pygame.display.set_caption(f"{variaveis.nome_do_jogo} - v{variaveis.versao}")
     screen = pygame.display.set_mode((800, 700))
 
-    app = wx.App(False)
     menu = Menu(screen)
 
     running = True
@@ -23,7 +21,6 @@ def main():
         elif result == "exit" or result is None:
             running = False
 
-    app.Destroy()
     pygame.quit()
 
 if __name__ == "__main__":
